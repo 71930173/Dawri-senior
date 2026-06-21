@@ -575,7 +575,6 @@ router.get('/issue-types', (req, res) => {
 });
 
 // ==================== GET AVAILABLE STAFF FOR ISSUE TYPE ====================
-// FIXED: Removed LIMIT 1 to return ALL available staff for the issue type
 router.get('/available-staff', (req, res) => {
   const { issueTypeId } = req.query;
 
@@ -599,7 +598,6 @@ router.get('/available-staff', (req, res) => {
       if (results.length === 0) {
         return res.status(404).json({ error: 'No available staff for this issue type' });
       }
-      // FIXED: Return array of ALL staff, not just first one
       res.json(results);
     }
   );
@@ -681,7 +679,6 @@ router.post('/appointments', verifyStudent, (req, res) => {
                             );
 
                             // Bilingual Email + WhatsApp notification (with DB duplicate check)
-                            // FIXED: Fetch staff name and location to include in confirmation notification
                             db.query(
                               `SELECT s.email, s.phone, s.first_name, s.last_name,
                                 CONCAT(st.first_name, ' ', st.last_name) as staff_name,
@@ -833,7 +830,6 @@ router.post('/appointments/:id/cancel', verifyStudent, (req, res) => {
 });
 
 // ==================== GET QUEUE STATUS ====================
-// FIXED: Removed auto-promote logic. Student stays 'waiting' until staff calls.
 // Position 1 student gets 5 min wait (1 * 5 * 60 = 300 seconds).
 router.get('/queue-status/:appointmentId', verifyStudent, (req, res) => {
   const { appointmentId } = req.params;
@@ -907,7 +903,6 @@ router.get('/queue-status/:appointmentId', verifyStudent, (req, res) => {
               const peopleBefore = countResults[0].people_before || 0;
               const avgTime = status.avg_service_time || 5;
 
-              // FIXED: Calculate position and wait time properly
               // Position: serving person = 0, first waiting = 1, second = 2, etc.
               let dynamicPosition;
               let remainingSeconds;
@@ -941,7 +936,6 @@ router.get('/queue-status/:appointmentId', verifyStudent, (req, res) => {
                 }
               }
 
-              // FIXED: Removed auto-promote logic - student stays 'waiting' until staff calls them
               // This ensures 5-minute wait screen shows for position 1
               let effectiveStatus = status.status;
 
@@ -1084,7 +1078,6 @@ router.post('/queue-status/:appointmentId/send-3min-warning', verifyStudent, (re
             });
           }
 
-          // FIXED: Save in-app notification FIRST (so it appears in notification page)
           const inAppMessage = `⏰ 3 Minutes Warning / تنبيه 3 دقائق\nYour turn is in ~3 minutes! Please be ready. / دورك خلال 3 دقائق! يرجى الاستعداد.\nTicket: #${appt.ticket_number}`;
 
           db.query(
@@ -1250,7 +1243,6 @@ router.post('/queue-status/:appointmentId/send-turn-now', verifyStudent, (req, r
 
           const appt = results[0];
 
-          // FIXED: Save in-app notification FIRST (so it appears in notification page)
           const notifMessage = `🎉 It is Your Turn Now! / دورك الآن!\nPlease go to the office, the Dr. is waiting for you! / اذهب إلى المكتب، Dr. في انتظارك!\nTicket: #${appt.ticket_number}`;
 
           db.query(
@@ -1286,6 +1278,7 @@ router.post('/queue-status/:appointmentId/send-turn-now', verifyStudent, (req, r
     }
   );
 });
+
 
 // POST /api/student/queue-status/:appointmentId/send-turn-now-whatsapp
 router.post('/queue-status/:appointmentId/send-turn-now-whatsapp', verifyStudent, (req, res) => {
@@ -1326,5 +1319,38 @@ router.post('/queue-status/:appointmentId/send-turn-now-whatsapp', verifyStudent
     }
   );
 });
+// ==================== DELETE ALL NOTIFICATIONS ====================
+// MUST be before /:id route to prevent "all" being treated as an ID
+router.delete('/notifications/all', verifyStudent, (req, res) => {
+  db.query(
+    'DELETE FROM notifications WHERE recipient_id = ? AND recipient_type = "student"',
+    [req.studentId],
+    (err, result) => {
+      if (err) {
+        console.error('Delete all notifications error:', err);
+        return res.status(500).json({ error: 'Failed to delete all notifications' });
+      }
+      res.json({ success: true, deleted: result.affectedRows, message: 'All notifications deleted' });
+    }
+  );
+});
 
+// ==================== DELETE SINGLE NOTIFICATION ====================
+router.delete('/notifications/:id', verifyStudent, (req, res) => {
+  const { id } = req.params;
+  db.query(
+    'DELETE FROM notifications WHERE id = ? AND recipient_id = ? AND recipient_type = "student"',
+    [id, req.studentId],
+    (err, result) => {
+      if (err) {
+        console.error('Delete notification error:', err);
+        return res.status(500).json({ error: 'Failed to delete notification' });
+      }
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: 'Notification not found or already deleted' });
+      }
+      res.json({ success: true, message: 'Notification deleted' });
+    }
+  );
+});
 module.exports = router;

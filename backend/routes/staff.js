@@ -5,7 +5,7 @@ const db = require('../config/db');
 const axios = require('axios'); // ADDED for UltraMsg
 
 // ============================================
-// NEW: Helper functions for sending turn notifications
+// Helper functions for sending turn notifications
 // Sends email or WhatsApp based on user's preference
 // ============================================
 
@@ -41,7 +41,7 @@ const sendWhatsAppNotification = async (to, message) => {
     return { success: false, error: 'No phone number provided' };
   }
 
-  formattedPhone = formattedPhone.replace(/[\s\-\(\)]/g, '');
+  formattedPhone = formattedPhone.replace(/[\s\-()]/g, '');
   if (formattedPhone.startsWith('0')) {
     formattedPhone = '+966' + formattedPhone.substring(1);
   } else if (!formattedPhone.startsWith('+')) {
@@ -122,7 +122,7 @@ const buildTurnNowEmail = (data) => {
 // Send turn notification to user (email or WhatsApp based on contact_method)
 const sendTurnNotification = async (userType, userId, contactMethod, contactValue, firstName, ticketNumber, staffName, location) => {
   const emailTo = (contactMethod === 'email' || (contactValue && contactValue.includes('@'))) ? contactValue : null;
-  const phoneTo = (['phone', 'mobile', 'whatsapp'].includes(contactMethod) || (contactValue && /^[\+\d]/.test(contactValue))) ? contactValue : null;
+  const phoneTo = (['phone', 'mobile', 'whatsapp'].includes(contactMethod) || (contactValue && /^[+\d]/.test(contactValue))) ? contactValue : null;
 
   let emailSent = false;
   let whatsappSent = false;
@@ -1387,7 +1387,7 @@ function notifyWaitingUsers(staffId, notifyType) {
           }
 
           // 3. WhatsApp notification
-          const phoneTo = (['phone', 'mobile', 'whatsapp'].includes(user.contact_method) || (user.phone && /^[\+\d]/.test(user.phone))) ? user.phone : null;
+          const phoneTo = (['phone', 'mobile', 'whatsapp'].includes(user.contact_method) || (user.phone && /^[+\d]/.test(user.phone))) ? user.phone : null;
           if (phoneTo && process.env.ULTRAMSG_INSTANCE_ID && process.env.ULTRAMSG_TOKEN) {
             const waMessage = isPausedNotify
               ? `⏸️ *Dawri Alert / تنبيه Dawri*
@@ -1503,6 +1503,10 @@ router.get('/stats', authenticateStaff, (req, res) => {
       servedGroupFormat = '%Y-%m';
       createdDateFilter = 'a.created_at >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)';
       break;
+    default:
+      servedDateFilter = 'DATE(a.completed_at) = CURDATE()';
+      servedGroupFormat = '%H:00';
+      createdDateFilter = 'DATE(a.created_at) = CURDATE()';
   }
 
   // Main stats query - served stats use completed_at, cancelled/no_show use created_at

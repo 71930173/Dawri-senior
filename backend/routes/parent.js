@@ -5,7 +5,7 @@ const db = require('../config/db');
 const axios = require('axios');
 
 // ============================================
-// POST /api/guest/login - Guest login
+// POST /api/parent/login - Parent login
 // ============================================
 router.post('/login', async (req, res) => {
   const { contactValue, password } = req.body;
@@ -15,13 +15,13 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    // Find guest by contact_value (phone or email)
+    // Find parent by contact_value (phone or email)
     db.query(
-      'SELECT id, first_name, last_name, contact_method, contact_value, language, password FROM guests WHERE contact_value = ? AND is_active = 1',
+      'SELECT id, first_name, last_name, contact_method, contact_value, language, password FROM parents WHERE contact_value = ? AND is_active = 1',
       [contactValue],
       async (err, results) => {
         if (err) {
-          console.error('Guest login DB error:', err);
+          console.error('Parent login DB error:', err);
           return res.status(500).json({ error: 'Database error' });
         }
 
@@ -29,11 +29,11 @@ router.post('/login', async (req, res) => {
           return res.status(401).json({ error: 'Invalid credentials' });
         }
 
-        const guest = results[0];
+        const parent = results[0];
 
         // Verify password
         const bcrypt = require('bcrypt');
-        const isMatch = await bcrypt.compare(password, guest.password);
+        const isMatch = await bcrypt.compare(password, parent.password);
 
         if (!isMatch) {
           return res.status(401).json({ error: 'Invalid credentials' });
@@ -41,7 +41,7 @@ router.post('/login', async (req, res) => {
 
         // Generate JWT
         const token = jwt.sign(
-          { id: guest.id, userType: 'guest', firstName: guest.first_name },
+          { id: parent.id, userType: 'parent', firstName: parent.first_name },
           process.env.JWT_SECRET,
           { expiresIn: '24h' }
         );
@@ -49,60 +49,25 @@ router.post('/login', async (req, res) => {
         res.json({
           success: true,
           token,
-          guest: {
-            id: guest.id,
-            firstName: guest.first_name,
-            lastName: guest.last_name,
-            contactMethod: guest.contact_method,
-            contactValue: guest.contact_value,
-            language: guest.language
+          parent: {
+            id: parent.id,
+            firstName: parent.first_name,
+            lastName: parent.last_name,
+            contactMethod: parent.contact_method,
+            contactValue: parent.contact_value,
+            language: parent.language
           }
         });
       }
     );
   } catch (error) {
-    console.error('Guest login error:', error);
+    console.error('Parent login error:', error);
     res.status(500).json({ error: 'Login failed' });
   }
 });
-// ============================================
-// POST /api/guest/check-duplicate - Check if contact_value already exists
-// ============================================
-router.post('/check-duplicate', async (req, res) => {
-  const { contactValue } = req.body;
-
-  if (!contactValue || !contactValue.trim()) {
-    return res.status(400).json({ error: 'Contact value is required' });
-  }
-
-  try {
-    db.query(
-      'SELECT id FROM guests WHERE contact_value = ?',
-      [contactValue.trim()],
-      (err, results) => {
-        if (err) {
-          console.error('Check duplicate error:', err);
-          return res.status(500).json({ error: 'Database error' });
-        }
-
-        if (results.length > 0) {
-          return res.status(409).json({
-            exists: true,
-            error: 'Phone or email already exists'
-          });
-        }
-
-        res.json({ exists: false });
-      }
-    );
-  } catch (error) {
-    console.error('Check duplicate error:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
 
 // ============================================
-// Email helper with Arabic/English support
+// NEW: Email helper with Arabic/English support
 // ============================================
 const buildEmailTemplate = (lang, type, data) => {
   
@@ -133,7 +98,7 @@ const buildEmailTemplate = (lang, type, data) => {
     <!-- English Section -->
     <div class="section-en">
       <div class="lang-label">English</div>
-      <h2>${type === 'warning3min' ? '⏰ Dawri - Your Turn is Coming Soon!' : type === 'turn_now' ? "🎉 Dawri - It's Your Turn Now!" : 'Dawri - Appointment Confirmed'}</h2>
+      <h2>${type === 'warning3min' ? '⏰ Smart Queue - Your Turn is Coming Soon!' : type === 'turn_now' ? "🎉 Smart Queue - It's Your Turn Now!" : 'Smart Queue - Appointment Confirmed'}</h2>
       <p>${type === 'warning3min' ? 'Your appointment is approaching! ⏳' : type === 'turn_now' ? 'Please go to the office now!' : 'Your appointment details:'}</p>
       <p>Hello ${data.firstName},</p>
       ${type === 'warning3min' ? `
@@ -146,19 +111,19 @@ const buildEmailTemplate = (lang, type, data) => {
       <ul>
         <li><strong>Ticket Number:</strong> ${data.ticketNumber ? '#' + data.ticketNumber : ''}</li>
         ${data.waitTime ? `<li><strong>Estimated Wait:</strong> ${data.waitTime} minutes</li>` : ''}
-        ${data.priority ? `<li><strong>Priority:</strong> Guest Priority (Highest)</li>` : ''}
+        ${data.priority ? `<li><strong>Priority:</strong> Parent Priority (Highest)</li>` : ''}
         ${data.position ? `<li><strong>Queue Position:</strong> ${data.position}</li>` : ''}
         ${data.staffName ? `<li><strong>Staff:</strong> ${data.staffName}</li>` : ''}
         ${data.location ? `<li><strong>Location:</strong> ${data.location}</li>` : ''}
       </ul>
       ${type === 'turn_now' ? `<p><strong>Please proceed to the office immediately! The staff is waiting for you.</strong></p>` : type === 'confirmation' ? `<p>You will receive a notification when your turn is approaching.</p>` : `<p>Please make your way to the office now to ensure you don't miss your turn.</p>`}
-      <p class="footer">This is an automated notification from Dawri System.</p>
+      <p class="footer">This is an automated notification from Smart Queue System.</p>
     </div>
 
     <!-- Arabic Section -->
     <div class="section-ar">
       <div class="lang-label">العربية</div>
-      <h2>${type === 'warning3min' ? '⏰ Dawri - دورك قادم!' : type === 'turn_now' ? '🎉 Dawri - دورك الآن!' : 'Dawri - تم تأكيد الموعد'}</h2>
+      <h2>${type === 'warning3min' ? '⏰ Smart Queue - دورك قادم!' : type === 'turn_now' ? '🎉 Smart Queue - دورك الآن!' : 'Smart Queue - تم تأكيد الموعد'}</h2>
       <p>${type === 'warning3min' ? 'دورك يقترب! ⏳' : type === 'turn_now' ? 'اذهب إلى المكتب الآن!' : 'تفاصيل الموعد:'}</p>
       <p>مرحباً ${data.firstName}،</p>
       ${type === 'warning3min' ? `
@@ -171,13 +136,13 @@ const buildEmailTemplate = (lang, type, data) => {
       <ul>
         <li><strong>رقم التذكرة:</strong> ${data.ticketNumber ? '#' + data.ticketNumber : ''}</li>
         ${data.waitTime ? `<li><strong>وقت الانتظار المتوقع:</strong> ${data.waitTime} دقيقة</li>` : ''}
-        ${data.priority ? `<li><strong>الأولوية:</strong> أولوية الضيف (الأعلى)</li>` : ''}
+        ${data.priority ? `<li><strong>الأولوية:</strong> أولوية ولي الأمر (الأعلى)</li>` : ''}
         ${data.position ? `<li><strong>موقعك في الطابور:</strong> ${data.position}</li>` : ''}
         ${data.staffName ? `<li><strong>الموظف:</strong> ${data.staffName}</li>` : ''}
         ${data.location ? `<li><strong>الموقع:</strong> ${data.location}</li>` : ''}
       </ul>
       ${type === 'turn_now' ? `<p><strong>يرجى التوجه إلى المكتب فوراً! الموظف في انتظارك.</strong></p>` : type === 'confirmation' ? `<p>سيتم إعلامك عند اقتراب دورك.</p>` : `<p>يرجى التوجه إلى المكتب الآن للتأكد من عدم تفويت دورك.</p>`}
-      <p class="footer">إشعار آلي من نظام Dawri.</p>
+      <p class="footer">إشعار آلي من نظام Smart Queue.</p>
     </div>
   </div>
 </body>
@@ -210,7 +175,7 @@ const sendEmail = async (to, subject, htmlBody, lang = 'en') => {
 const sentWarnings = new Set();
 
 // ============================================
-// WhatsApp helper using UltraMsg
+// NEW: WhatsApp helper using UltraMsg
 // ============================================
 const sendWhatsApp = async (to, message) => {
   const instanceId = process.env.ULTRAMSG_INSTANCE_ID;
@@ -269,8 +234,8 @@ const sendWhatsApp = async (to, message) => {
   }
 };
 
-// Middleware to verify guest token
-const verifyGuestToken = (req, res, next) => {
+// Middleware to verify parent token
+const verifyParentToken = (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) {
     return res.status(401).json({ error: 'Access denied. No token provided.' });
@@ -278,10 +243,10 @@ const verifyGuestToken = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (decoded.userType !== 'guest') {
-      return res.status(403).json({ error: 'Access denied. Not a guest account.' });
+    if (decoded.userType !== 'parent') {
+      return res.status(403).json({ error: 'Access denied. Not a parent account.' });
     }
-    req.guestId = decoded.id;
+    req.parentId = decoded.id;
     next();
   } catch (error) {
     return res.status(401).json({ error: 'Invalid token.' });
@@ -330,7 +295,7 @@ function recalculateQueue(staffId, callback) {
           // Step 2: Get waiting appointments sorted by priority ASC, created_at ASC
           connection.query(
             `SELECT id, priority, created_at, user_type,
-              CASE WHEN user_type = 'student' THEN student_id ELSE guest_id END as user_id
+              CASE WHEN user_type = 'student' THEN student_id ELSE parent_id END as user_id
              FROM appointments 
              WHERE staff_id = ? AND status = 'waiting'
              ORDER BY priority ASC, created_at ASC`,
@@ -426,12 +391,12 @@ function recalculateQueue(staffId, callback) {
 // ============================================================
 function sendPriorityUpdateNotifications(staffId, excludeAppointmentId) {
   db.query(
-    `SELECT a.id, a.user_type, a.student_id, a.guest_id, a.estimated_wait_minutes,
+    `SELECT a.id, a.user_type, a.student_id, a.parent_id, a.estimated_wait_minutes,
       CASE WHEN a.user_type = 'student' THEN s.email ELSE p.contact_value END as contact,
       CASE WHEN a.user_type = 'student' THEN s.phone ELSE p.contact_value END as phone
      FROM appointments a
      LEFT JOIN students s ON a.student_id = s.id
-     LEFT JOIN guests p ON a.guest_id = p.id
+     LEFT JOIN parents p ON a.parent_id = p.id
      WHERE a.staff_id = ? AND a.status = 'waiting' AND a.id != ?`,
     [staffId, excludeAppointmentId || 0],
     (err, affectedUsers) => {
@@ -441,7 +406,7 @@ function sendPriorityUpdateNotifications(staffId, excludeAppointmentId) {
       }
 
       affectedUsers.forEach(user => {
-        const recipientId = user.user_type === 'student' ? user.student_id : user.guest_id;
+        const recipientId = user.user_type === 'student' ? user.student_id : user.parent_id;
         // BILINGUAL: English + Arabic
         const message = `Queue updated / تم تحديث الطابور:
 Your estimated wait time is now ${user.estimated_wait_minutes} minutes due to priority queue changes.
@@ -458,31 +423,31 @@ Your estimated wait time is now ${user.estimated_wait_minutes} minutes due to pr
   );
 }
 
-// GET /api/guest/profile - Get guest profile
-router.get('/profile', verifyGuestToken, (req, res) => {
+// GET /api/parent/profile - Get parent profile
+router.get('/profile', verifyParentToken, (req, res) => {
   db.query(
-    'SELECT id, first_name, last_name, contact_method, contact_value, language, is_active, created_at FROM guests WHERE id = ?',
-    [req.guestId],
+    'SELECT id, first_name, last_name, contact_method, contact_value, language, is_active, created_at FROM parents WHERE id = ?',
+    [req.parentId],
     (err, results) => {
       if (err) {
         console.error('Profile fetch error:', err);
         return res.status(500).json({ error: 'Failed to fetch profile' });
       }
       if (results.length === 0) {
-        return res.status(404).json({ error: 'Guest not found' });
+        return res.status(404).json({ error: 'Parent not found' });
       }
       res.json(results[0]);
     }
   );
 });
 
-// PUT /api/guest/profile - Update guest profile
-router.put('/profile', verifyGuestToken, (req, res) => {
+// PUT /api/parent/profile - Update parent profile
+router.put('/profile', verifyParentToken, (req, res) => {
   const { first_name, last_name, contact_method, contact_value, language } = req.body;
 
   db.query(
-    'UPDATE guests SET first_name = ?, last_name = ?, contact_method = ?, contact_value = ?, language = ? WHERE id = ?',
-    [first_name, last_name, contact_method, contact_value, language, req.guestId],
+    'UPDATE parents SET first_name = ?, last_name = ?, contact_method = ?, contact_value = ?, language = ? WHERE id = ?',
+    [first_name, last_name, contact_method, contact_value, language, req.parentId],
     (err, result) => {
       if (err) {
         console.error('Profile update error:', err);
@@ -493,7 +458,7 @@ router.put('/profile', verifyGuestToken, (req, res) => {
   );
 });
 
-// GET /api/guest/issue-types - Get all issue types
+// GET /api/parent/issue-types - Get all issue types
 router.get('/issue-types', (req, res) => {
   db.query(
     'SELECT id, name, name_ar, description, color, icon FROM issue_types ORDER BY id',
@@ -507,9 +472,11 @@ router.get('/issue-types', (req, res) => {
   );
 });
 
-// GET /api/guest/available-staff - Get available staff for issue type
-// GET /api/guest/available-staff - Get available staff for issue type
-router.get('/available-staff', verifyGuestToken, (req, res) => {
+// GET /api/parent/available-staff - Get available staff for issue type
+// FIXED: Returns LIST of all staff matching the issue type, not just one
+// GET /api/parent/available-staff - Get available staff for issue type
+// FIXED: Returns LIST of all staff matching the issue type, not just one
+router.get('/available-staff', verifyParentToken, (req, res) => {
   const { issueTypeId } = req.query;
 
   if (!issueTypeId) {
@@ -571,19 +538,19 @@ router.get('/available-staff', verifyGuestToken, (req, res) => {
   );
 });
 
-// POST /api/guest/appointments - Create new appointment
-// PRIORITY: Guest = 1 (highest priority)
-router.post('/appointments', verifyGuestToken, (req, res) => {
+// POST /api/parent/appointments - Create new appointment
+// PRIORITY: Parent = 1 (highest priority)
+router.post('/appointments', verifyParentToken, (req, res) => {
   const { staff_id, issue_type_id, description } = req.body;
 
   if (!staff_id || !issue_type_id) {
     return res.status(400).json({ error: 'Staff ID and issue type ID are required' });
   }
 
-  // Check if guest already has an active appointment
+  // Check if parent already has an active appointment
   db.query(
-    "SELECT id, status FROM appointments WHERE guest_id = ? AND status IN ('waiting', 'serving')",
-    [req.guestId],
+    "SELECT id, status FROM appointments WHERE parent_id = ? AND status IN ('waiting', 'serving')",
+    [req.parentId],
     (err, activeResults) => {
       if (err) {
         console.error('Active appointment check error:', err);
@@ -641,13 +608,13 @@ router.post('/appointments', verifyGuestToken, (req, res) => {
 
                   const ticketNumber = ticketResults[0].next_ticket;
 
-                  // GUEST: priority = 1 (highest), is_guest_priority = 1
+                  // PARENT: priority = 1 (highest), is_parent_priority = 1
                   db.query(
                     `INSERT INTO appointments 
-                     (ticket_number, user_type, guest_id, staff_id, issue_type_id, description, 
-                      status, queue_position, estimated_wait_minutes, priority, is_guest_priority) 
-                     VALUES (?, 'guest', ?, ?, ?, ?, 'waiting', 0, 0, 1, 1)`,
-                    [ticketNumber, req.guestId, staff_id, issue_type_id, description || ''],
+                     (ticket_number, user_type, parent_id, staff_id, issue_type_id, description, 
+                      status, queue_position, estimated_wait_minutes, priority, is_parent_priority) 
+                     VALUES (?, 'parent', ?, ?, ?, ?, 'waiting', 0, 0, 1, 1)`,
+                    [ticketNumber, req.parentId, staff_id, issue_type_id, description || ''],
                     (err, insertResult) => {
                       if (err) {
                         console.error('Appointment creation error:', err);
@@ -677,53 +644,53 @@ router.post('/appointments', verifyGuestToken, (req, res) => {
                             db.query(
                               `INSERT INTO notifications 
                                (appointment_id, recipient_type, recipient_id, channel, message, notification_type, is_sent) 
-                               VALUES (?, 'guest', ?, 'in_app', ?, 'confirmation', 1)`,
-                              [appointmentId, req.guestId, `✅ Queue Confirmed / تم تأكيد الطابور:
-Ticket #${ticketNumber} | Estimated wait: ${waitTime} minutes | Priority: Guest
-تذكرة #${ticketNumber} | الوقت المتوقع: ${waitTime} دقيقة | الأولوية: ضيف`],
+                               VALUES (?, 'parent', ?, 'in_app', ?, 'confirmation', 1)`,
+                              [appointmentId, req.parentId, `✅ Queue Confirmed / تم تأكيد الطابور:
+Ticket #${ticketNumber} | Estimated wait: ${waitTime} minutes | Priority: Parent
+تذكرة #${ticketNumber} | الوقت المتوقع: ${waitTime} دقيقة | الأولوية: ولي أمر`],
                               (err) => {
                                 if (err) console.error('Notification error:', err);
                               }
                             );
 
-                            // Send email notification if guest has email
+                            // Send email notification if parent has email
                             db.query(
-                              'SELECT contact_method, contact_value, language, first_name FROM guests WHERE id = ?',
-                              [req.guestId],
-                              (err, guestResults) => {
-                                if (!err && guestResults.length > 0) {
-                                  const guest = guestResults[0];
-                                  const guestLang = guest.language || 'en';
+                              'SELECT contact_method, contact_value, language, first_name FROM parents WHERE id = ?',
+                              [req.parentId],
+                              (err, parentResults) => {
+                                if (!err && parentResults.length > 0) {
+                                  const parent = parentResults[0];
+                                  const parentLang = parent.language || 'en';
 
                                   // Email confirmation
-                                  if (guest.contact_method === 'email' || (guest.contact_value && guest.contact_value.includes('@'))) {
+                                  if (parent.contact_method === 'email' || (parent.contact_value && parent.contact_value.includes('@'))) {
                                     const emailData = {
-                                      firstName: guest.first_name,
+                                      firstName: parent.first_name,
                                       ticketNumber: ticketNumber,
                                       waitTime: waitTime,
                                       priority: true,
                                       position: position
                                     };
 
-                                    const emailBody = buildEmailTemplate(guestLang, 'confirmation', emailData);
-                                    const subject = guestLang === 'ar' 
-                                      ? `=?UTF-8?B?${Buffer.from('تم تأكيد موعدك - Dawri').toString('base64')}?=`
-                                      : 'Dawri - Appointment Confirmed';
+                                    const emailBody = buildEmailTemplate(parentLang, 'confirmation', emailData);
+                                    const subject = parentLang === 'ar' 
+                                      ? `=?UTF-8?B?${Buffer.from('تم تأكيد موعدك - Smart Queue').toString('base64')}?=`
+                                      : 'Smart Queue - Appointment Confirmed';
 
-                                    sendEmail(guest.contact_value, subject, emailBody, guestLang);
+                                    sendEmail(parent.contact_value, subject, emailBody, parentLang);
                                   }
 
                                   // WhatsApp confirmation via UltraMsg
                                   let phoneTo = null;
-                                  if (['phone', 'mobile', 'whatsapp'].includes(guest.contact_method)) {
-                                    phoneTo = guest.contact_value;
+                                  if (['phone', 'mobile', 'whatsapp'].includes(parent.contact_method)) {
+                                    phoneTo = parent.contact_value;
                                   }
-                                  if (!phoneTo && guest.contact_value && /^[+\d]/.test(guest.contact_value)) {
-                                    phoneTo = guest.contact_value;
+                                  if (!phoneTo && parent.contact_value && /^[+\d]/.test(parent.contact_value)) {
+                                    phoneTo = parent.contact_value;
                                   }
 
                                   if (phoneTo) {
-                                    const waMessage = `✅ *Dawri - Appointment Confirmed / تم تأكيد الموعد*\n\n*English:*\nHello ${guest.first_name},\nYour appointment has been confirmed! 🎉\n\n*Appointment Details:*\n🎫 Ticket Number: #${ticketNumber}\n⏳ Estimated Wait: ${waitTime} minutes\n⭐ Priority: Guest Priority (Highest)\n📍 Queue Position: ${position}\nYou will be notified when your turn is approaching.\n\n*العربية:*\nمرحباً ${guest.first_name}،\nتم تأكيد موعدك بنجاح! 🎉\n\n*تفاصيل الموعد:*\n🎫 رقم التذكرة: #${ticketNumber}\n⏳ الوقت المتوقع: ${waitTime} دقيقة\n⭐ الأولوية: أولوية الضيف (الأعلى)\n📍 موقعك في الطابور: ${position}\nسيتم إعلامك عند اقتراب دورك.`;
+                                    const waMessage = `✅ *Smart Queue - Appointment Confirmed / تم تأكيد الموعد*\n\n*English:*\nHello ${parent.first_name},\nYour appointment has been confirmed! 🎉\n\n*Appointment Details:*\n🎫 Ticket Number: #${ticketNumber}\n⏳ Estimated Wait: ${waitTime} minutes\n⭐ Priority: Parent Priority (Highest)\n📍 Queue Position: ${position}\nYou will be notified when your turn is approaching.\n\n*العربية:*\nمرحباً ${parent.first_name}،\nتم تأكيد موعدك بنجاح! 🎉\n\n*تفاصيل الموعد:*\n🎫 رقم التذكرة: #${ticketNumber}\n⏳ الوقت المتوقع: ${waitTime} دقيقة\n⭐ الأولوية: أولوية ولي الأمر (الأعلى)\n📍 موقعك في الطابور: ${position}\nسيتم إعلامك عند اقتراب دورك.`;
 
                                     sendWhatsApp(phoneTo, waMessage);
                                   }
@@ -737,9 +704,9 @@ Ticket #${ticketNumber} | Estimated wait: ${waitTime} minutes | Priority: Guest
                               estimated_wait_minutes: waitTime,
                               status: 'waiting',
                               priority: 1,
-                              is_guest_priority: 1,
+                              is_parent_priority: 1,
                               created_at: new Date().toISOString(),
-                              message: 'Appointment created successfully with Guest Priority'
+                              message: 'Appointment created successfully with Parent Priority'
                             });
                           }
                         );
@@ -756,8 +723,8 @@ Ticket #${ticketNumber} | Estimated wait: ${waitTime} minutes | Priority: Guest
   );
 });
 
-// GET /api/guest/my-appointments - Get guest's appointments
-router.get('/my-appointments', verifyGuestToken, (req, res) => {
+// GET /api/parent/my-appointments - Get parent's appointments
+router.get('/my-appointments', verifyParentToken, (req, res) => {
   db.query(
     `SELECT a.*, 
       it.name as issue_type_name, it.name_ar as issue_type_name_ar,
@@ -767,10 +734,10 @@ router.get('/my-appointments', verifyGuestToken, (req, res) => {
      FROM appointments a
      JOIN issue_types it ON a.issue_type_id = it.id
      JOIN staff s ON a.staff_id = s.id
-     WHERE a.guest_id = ?
+     WHERE a.parent_id = ?
      ORDER BY a.created_at DESC
      LIMIT 20`,
-    [req.guestId],
+    [req.parentId],
     (err, results) => {
       if (err) {
         console.error('Appointments fetch error:', err);
@@ -781,8 +748,8 @@ router.get('/my-appointments', verifyGuestToken, (req, res) => {
   );
 });
 
-// GET /api/guest/active-appointment - Get guest's active appointment
-router.get('/active-appointment', verifyGuestToken, (req, res) => {
+// GET /api/parent/active-appointment - Get parent's active appointment
+router.get('/active-appointment', verifyParentToken, (req, res) => {
   db.query(
     `SELECT a.*, 
       it.name as issue_type_name, it.name_ar as issue_type_name_ar,
@@ -792,10 +759,10 @@ router.get('/active-appointment', verifyGuestToken, (req, res) => {
      FROM appointments a
      JOIN issue_types it ON a.issue_type_id = it.id
      JOIN staff s ON a.staff_id = s.id
-     WHERE a.guest_id = ? AND a.status IN ('waiting', 'serving')
+     WHERE a.parent_id = ? AND a.status IN ('waiting', 'serving')
      ORDER BY a.created_at DESC
      LIMIT 1`,
-    [req.guestId],
+    [req.parentId],
     (err, results) => {
       if (err) {
         console.error('Active appointment fetch error:', err);
@@ -809,8 +776,8 @@ router.get('/active-appointment', verifyGuestToken, (req, res) => {
   );
 });
 
-// POST /api/guest/appointments/:id/cancel - Cancel appointment
-router.post('/appointments/:id/cancel', verifyGuestToken, (req, res) => {
+// POST /api/parent/appointments/:id/cancel - Cancel appointment
+router.post('/appointments/:id/cancel', verifyParentToken, (req, res) => {
   const { id } = req.params;
 
   const appointmentId = parseInt(id, 10);
@@ -819,8 +786,8 @@ router.post('/appointments/:id/cancel', verifyGuestToken, (req, res) => {
   }
 
   db.query(
-    "SELECT id, status, staff_id, queue_position FROM appointments WHERE id = ? AND guest_id = ?",
-    [appointmentId, req.guestId],
+    "SELECT id, status, staff_id, queue_position FROM appointments WHERE id = ? AND parent_id = ?",
+    [appointmentId, req.parentId],
     (err, results) => {
       if (err) {
         console.error('Cancel check error:', err);
@@ -837,8 +804,8 @@ router.post('/appointments/:id/cancel', verifyGuestToken, (req, res) => {
       }
 
       db.query(
-        "UPDATE appointments SET status = 'cancelled', updated_at = NOW() WHERE id = ? AND guest_id = ?",
-        [appointmentId, req.guestId],
+        "UPDATE appointments SET status = 'cancelled', updated_at = NOW() WHERE id = ? AND parent_id = ?",
+        [appointmentId, req.parentId],
         (err, updateResult) => {
           if (err) {
             console.error('Cancel error:', err);
@@ -861,8 +828,8 @@ router.post('/appointments/:id/cancel', verifyGuestToken, (req, res) => {
           db.query(
             `INSERT INTO notifications 
              (appointment_id, recipient_type, recipient_id, channel, message, notification_type, is_sent) 
-             VALUES (?, 'guest', ?, 'in_app', ?, 'cancelled', 1)`,
-            [appointmentId, req.guestId, `Your appointment #${appointmentId} has been cancelled / تم إلغاء موعدك #${appointmentId}.`],
+             VALUES (?, 'parent', ?, 'in_app', ?, 'cancelled', 1)`,
+            [appointmentId, req.parentId, `Your appointment #${appointmentId} has been cancelled / تم إلغاء موعدك #${appointmentId}.`],
             (err) => {
               if (err) console.error('Notification error:', err);
             }
@@ -875,13 +842,13 @@ router.post('/appointments/:id/cancel', verifyGuestToken, (req, res) => {
   );
 });
 
-// GET /api/guest/queue-status/:appointmentId - Get queue status for appointment
+// GET /api/parent/queue-status/:appointmentId - Get queue status for appointment
 // DYNAMIC waiting time that:
 // 1. Decreases smoothly every second
 // 2. Extends by avgTime when queue changes (not resets)
 // 3. Persists across refresh using elapsed time
 // 4. Sends 3-min warning email to whoever has email
-router.get('/queue-status/:appointmentId', verifyGuestToken, (req, res) => {
+router.get('/queue-status/:appointmentId', verifyParentToken, (req, res) => {
   const { appointmentId } = req.params;
 
   db.query(
@@ -893,8 +860,8 @@ router.get('/queue-status/:appointmentId', verifyGuestToken, (req, res) => {
       TIMESTAMPDIFF(SECOND, a.created_at, NOW()) as elapsed_seconds
      FROM appointments a
      JOIN staff s ON a.staff_id = s.id
-     WHERE a.id = ? AND a.guest_id = ?`,
-    [appointmentId, req.guestId],
+     WHERE a.id = ? AND a.parent_id = ?`,
+    [appointmentId, req.parentId],
     (err, results) => {
       if (err) {
         console.error('Queue status error:', err);
@@ -951,7 +918,7 @@ router.get('/queue-status/:appointmentId', verifyGuestToken, (req, res) => {
                   block: status.block,
                   floor: status.floor,
                   priority: status.priority,
-                  is_guest_priority: status.is_guest_priority,
+                  is_parent_priority: status.is_parent_priority,
                   description: status.description
                 });
               }
@@ -996,12 +963,12 @@ router.get('/queue-status/:appointmentId', verifyGuestToken, (req, res) => {
 
               // Count parents before (for display purposes)
               db.query(
-                `SELECT COUNT(*) as guests_before
+                `SELECT COUNT(*) as parents_before
                  FROM appointments 
                  WHERE staff_id = ? AND status = 'waiting' AND priority < ?`,
                 [status.staff_id, status.priority],
                 (err, parentCountResults) => {
-                  const parentsBefore = parentCountResults?.[0]?.guests_before || 0;
+                  const parentsBefore = parentCountResults?.[0]?.parents_before || 0;
                   const studentsBefore = peopleBefore - parentsBefore;
 
                   res.json({
@@ -1010,7 +977,7 @@ router.get('/queue-status/:appointmentId', verifyGuestToken, (req, res) => {
                     status: effectiveStatus,
                     queue_position: dynamicPosition,
                     people_before: Math.max(0, dynamicPosition - 1),
-                    guests_before: parentsBefore,
+                    parents_before: parentsBefore,
                     students_before: studentsBefore,
                     estimated_wait_minutes: Math.ceil(remainingSeconds / 60),
                     remaining_seconds: remainingSeconds,
@@ -1022,7 +989,7 @@ router.get('/queue-status/:appointmentId', verifyGuestToken, (req, res) => {
                     block: status.block,
                     floor: status.floor,
                     priority: status.priority,
-                    is_guest_priority: status.is_guest_priority,
+                    is_parent_priority: status.is_parent_priority,
                     description: status.description,
                     currently_serving_id: currentlyServing?.id || null
                   });
@@ -1036,8 +1003,11 @@ router.get('/queue-status/:appointmentId', verifyGuestToken, (req, res) => {
   );
 });
 
-// POST /api/guest/queue-status/:appointmentId/send-3min-warning
-router.post('/queue-status/:appointmentId/send-3min-warning', verifyGuestToken, (req, res) => {
+// POST /api/parent/queue-status/:appointmentId/send-3min-warning
+// FIXED: Sends email to whoever has email registered (parent or student)
+// FIXED: Prevents duplicate sends for same appointment
+// FIXED: If staff is paused, sends modified "staff paused" message instead
+router.post('/queue-status/:appointmentId/send-3min-warning', verifyParentToken, (req, res) => {
   const { appointmentId } = req.params;
 
   // Prevent duplicate sends for same appointment
@@ -1054,10 +1024,10 @@ router.post('/queue-status/:appointmentId/send-3min-warning', verifyGuestToken, 
       CONCAT(s.first_name, ' ', s.last_name) as staff_name,
       s.room_number, s.block, s.floor, s.is_paused as staff_is_paused
      FROM appointments a
-     JOIN guests p ON a.guest_id = p.id
+     JOIN parents p ON a.parent_id = p.id
      JOIN staff s ON a.staff_id = s.id
-     WHERE a.id = ? AND a.guest_id = ? AND a.status = 'waiting'`,
-    [appointmentId, req.guestId],
+     WHERE a.id = ? AND a.parent_id = ? AND a.status = 'waiting'`,
+    [appointmentId, req.parentId],
     async (err, results) => {
       if (err) {
         console.error('3min warning check error:', err);
@@ -1071,6 +1041,7 @@ router.post('/queue-status/:appointmentId/send-3min-warning', verifyGuestToken, 
       const appt = results[0];
       const isStaffPaused = appt.staff_is_paused === 1;
 
+      // FIXED: Determine email to use - parents table has no email column, only contact_method + contact_value
       let emailTo = null;
       if (appt.contact_method === 'email' && appt.contact_value && appt.contact_value.includes('@')) {
         emailTo = appt.contact_value;
@@ -1095,8 +1066,8 @@ router.post('/queue-status/:appointmentId/send-3min-warning', verifyGuestToken, 
       if (isStaffPaused) {
         // Staff is paused — send modified bilingual message
         subject = isAr
-          ? `=?UTF-8?B?${Buffer.from('⏰ دورك يقترب لكن الموظف متوقف - Dawri').toString('base64')}?=`
-          : '⏰ Dawri - Your Turn Approaching but Staff Paused';
+          ? `=?UTF-8?B?${Buffer.from('⏰ دورك يقترب لكن الموظف متوقف - Smart Queue').toString('base64')}?=`
+          : '⏰ Smart Queue - Your Turn Approaching but Staff Paused';
 
         emailBody = `<!DOCTYPE html>
 <html lang="en">
@@ -1124,7 +1095,7 @@ router.post('/queue-status/:appointmentId/send-3min-warning', verifyGuestToken, 
         <p><strong>Your turn is approaching, but the staff member is temporarily paused.</strong></p>
         <p>Please wait — you will be notified when service resumes.</p>
       </div>
-      <p class="footer">Automated notification from Dawri System.</p>
+      <p class="footer">Automated notification from Smart Queue System.</p>
     </div>
     <div class="section-ar">
       <div class="lang-label">العربية</div>
@@ -1134,7 +1105,7 @@ router.post('/queue-status/:appointmentId/send-3min-warning', verifyGuestToken, 
         <p><strong>دورك يقترب، لكن الموظف متوقف مؤقتاً.</strong></p>
         <p>يرجى الانتظار — سيتم إعلامك عند استئناف الخدمة.</p>
       </div>
-      <p class="footer">إشعار آلي من نظام Dawri.</p>
+      <p class="footer">إشعار آلي من نظام Smart Queue.</p>
     </div>
   </div>
 </body>
@@ -1154,8 +1125,8 @@ Your turn is approaching, but the staff member is temporarily paused. Please wai
 
         emailBody = buildEmailTemplate(lang, 'warning3min', emailData);
         subject = isAr
-          ? `=?UTF-8?B?${Buffer.from('⏰ دورك قادم خلال 3 دقائق - Dawri').toString('base64')}?=`
-          : '⏰ Dawri - Your Turn in 3 Minutes!';
+          ? `=?UTF-8?B?${Buffer.from('⏰ دورك قادم خلال 3 دقائق - Smart Queue').toString('base64')}?=`
+          : '⏰ Smart Queue - Your Turn in 3 Minutes!';
 
         notifMessage = `⏰ 3-Minute Warning / تنبيه 3 دقائق:
 Your turn is coming up in about 3 minutes! Please be ready.
@@ -1172,8 +1143,8 @@ Your turn is coming up in about 3 minutes! Please be ready.
       db.query(
         `INSERT INTO notifications 
          (appointment_id, recipient_type, recipient_id, channel, message, notification_type, is_sent) 
-         VALUES (?, 'guest', ?, 'email', ?, '3min_warning', ?)`,
-        [appointmentId, req.guestId, notifMessage, sent ? 1 : 0],
+         VALUES (?, 'parent', ?, 'email', ?, '3min_warning', ?)`,
+        [appointmentId, req.parentId, notifMessage, sent ? 1 : 0],
         (err) => {
           if (err) console.error('Notification log error:', err);
         }
@@ -1190,23 +1161,25 @@ Your turn is coming up in about 3 minutes! Please be ready.
 
 
 // ============================================
+// FIXED: POST /api/parent/queue-status/:appointmentId/send-3min-whatsapp
 // Sends WhatsApp message via UltraMsg when ~3 minutes remaining
-// Supports both English and Arabic based on guest language
+// Supports both English and Arabic based on parent language
+// FIXED: If staff is paused, sends modified "staff paused" message instead
 // ============================================
-router.post('/queue-status/:appointmentId/send-3min-whatsapp', verifyGuestToken, (req, res) => {
+router.post('/queue-status/:appointmentId/send-3min-whatsapp', verifyParentToken, (req, res) => {
   const { appointmentId } = req.params;
 
-  console.log('📥 WhatsApp 3-min warning requested:', { appointmentId, guestId: req.guestId });
+  console.log('📥 WhatsApp 3-min warning requested:', { appointmentId, parentId: req.parentId });
 
   db.query(
     `SELECT a.*, p.contact_method, p.contact_value, p.first_name, p.language,
       CONCAT(s.first_name, ' ', s.last_name) as staff_name,
       s.room_number, s.block, s.floor, s.is_paused as staff_is_paused
      FROM appointments a
-     JOIN guests p ON a.guest_id = p.id
+     JOIN parents p ON a.parent_id = p.id
      JOIN staff s ON a.staff_id = s.id
-     WHERE a.id = ? AND a.guest_id = ? AND a.status = 'waiting'`,
-    [appointmentId, req.guestId],
+     WHERE a.id = ? AND a.parent_id = ? AND a.status = 'waiting'`,
+    [appointmentId, req.parentId],
     async (err, results) => {
       if (err) {
         console.error('❌ 3min WhatsApp DB error:', err);
@@ -1230,7 +1203,8 @@ router.post('/queue-status/:appointmentId/send-3min-whatsapp', verifyGuestToken,
         staff_is_paused: isStaffPaused
       });
 
-      // Check if guest has phone number
+      // Check if parent has phone number
+      // FIXED: Accept phone, mobile, whatsapp as contact methods
       let phoneTo = null;
       if (['phone', 'mobile', 'whatsapp'].includes(appt.contact_method)) {
         phoneTo = appt.contact_value;
@@ -1244,7 +1218,7 @@ router.post('/queue-status/:appointmentId/send-3min-whatsapp', verifyGuestToken,
       console.log('📱 Phone extracted:', { phoneTo });
 
       if (!phoneTo) {
-        console.log('❌ No phone number found for guest');
+        console.log('❌ No phone number found for parent');
         return res.json({ 
           success: true, 
           sent: false, 
@@ -1255,7 +1229,7 @@ router.post('/queue-status/:appointmentId/send-3min-whatsapp', verifyGuestToken,
 
       // WhatsApp message - BILINGUAL (English + Arabic in one message)
       const message = isStaffPaused
-        ? `⏰ *Dawri Alert / تنبيه Dawri*
+        ? `⏰ *Smart Queue Alert / تنبيه Smart Queue*
 
 *English:*
 Hello ${appt.first_name},
@@ -1272,7 +1246,7 @@ Staff: ${appt.staff_name}
 يرجى الانتظار — سيتم إعلامك عند استئناف الخدمة.
 رقم التذكرة: #${appt.ticket_number}
 الموظف: ${appt.staff_name}`
-        : `⏰ *Dawri Alert / تنبيه Dawri*
+        : `⏰ *Smart Queue Alert / تنبيه Smart Queue*
 
 *English:*
 Hello ${appt.first_name},
@@ -1309,8 +1283,8 @@ Your turn is coming up in about 3 minutes! Please be ready.
         db.query(
           `INSERT INTO notifications 
            (appointment_id, recipient_type, recipient_id, channel, message, notification_type, is_sent) 
-           VALUES (?, 'guest', ?, 'whatsapp', ?, '3min_warning', 1)`,
-          [appointmentId, req.guestId, notifMsg],
+           VALUES (?, 'parent', ?, 'whatsapp', ?, '3min_warning', 1)`,
+          [appointmentId, req.parentId, notifMsg],
           (err) => {
             if (err) console.error('Notification log error:', err);
           }
@@ -1336,16 +1310,16 @@ Your turn is coming up in about 3 minutes! Please be ready.
   );
 });
 
-// GET /api/guest/notifications - Get guest notifications
-router.get('/notifications', verifyGuestToken, (req, res) => {
+// GET /api/parent/notifications - Get parent notifications
+router.get('/notifications', verifyParentToken, (req, res) => {
   db.query(
     `SELECT n.*, a.ticket_number
      FROM notifications n
      LEFT JOIN appointments a ON n.appointment_id = a.id
-     WHERE n.recipient_type = 'guest' AND n.recipient_id = ?
+     WHERE n.recipient_type = 'parent' AND n.recipient_id = ?
      ORDER BY n.created_at DESC
      LIMIT 50`,
-    [req.guestId],
+    [req.parentId],
     (err, results) => {
       if (err) {
         console.error('Notifications fetch error:', err);
@@ -1356,13 +1330,13 @@ router.get('/notifications', verifyGuestToken, (req, res) => {
   );
 });
 
-// PUT /api/guest/notifications/:id/read - Mark notification as read
-router.put('/notifications/:id/read', verifyGuestToken, (req, res) => {
+// PUT /api/parent/notifications/:id/read - Mark notification as read
+router.put('/notifications/:id/read', verifyParentToken, (req, res) => {
   const { id } = req.params;
 
   db.query(
-    'UPDATE notifications SET is_read = 1, read_at = NOW() WHERE id = ? AND recipient_id = ? AND recipient_type = "guest"',
-    [id, req.guestId],
+    'UPDATE notifications SET is_read = 1, read_at = NOW() WHERE id = ? AND recipient_id = ? AND recipient_type = "parent"',
+    [id, req.parentId],
     (err, result) => {
       if (err) {
         console.error('Notification update error:', err);
@@ -1373,8 +1347,8 @@ router.put('/notifications/:id/read', verifyGuestToken, (req, res) => {
   );
 });
 
-// POST /api/guest/queue-status/:appointmentId/send-turn-now
-router.post('/queue-status/:appointmentId/send-turn-now', verifyGuestToken, (req, res) => {
+// POST /api/parent/queue-status/:appointmentId/send-turn-now
+router.post('/queue-status/:appointmentId/send-turn-now', verifyParentToken, (req, res) => {
   const { appointmentId } = req.params;
 
   db.query(
@@ -1382,10 +1356,10 @@ router.post('/queue-status/:appointmentId/send-turn-now', verifyGuestToken, (req
       CONCAT(s.first_name, ' ', s.last_name) as staff_name,
       s.room_number, s.block, s.floor
      FROM appointments a
-     JOIN guests p ON a.guest_id = p.id
+     JOIN parents p ON a.parent_id = p.id
      JOIN staff s ON a.staff_id = s.id
-     WHERE a.id = ? AND a.guest_id = ? AND a.status = 'serving'`,
-    [appointmentId, req.guestId],
+     WHERE a.id = ? AND a.parent_id = ? AND a.status = 'serving'`,
+    [appointmentId, req.parentId],
     async (err, results) => {
       if (err) {
         console.error('Turn now email error:', err);
@@ -1416,15 +1390,15 @@ router.post('/queue-status/:appointmentId/send-turn-now', verifyGuestToken, (req
 
       const emailBody = buildEmailTemplate(appt.language || 'en', 'turn_now', emailData);
       const subject = (appt.language || 'en') === 'ar'
-        ? `=?UTF-8?B?${Buffer.from('🎉 دورك الآن! - Dawri').toString('base64')}?=`
-        : "🎉 It's Your Turn Now! - Dawri";
+        ? `=?UTF-8?B?${Buffer.from('🎉 دورك الآن! - Smart Queue').toString('base64')}?=`
+        : "🎉 It's Your Turn Now! - Smart Queue";
 
       const sent = await sendEmail(emailTo, subject, emailBody, appt.language || 'en');
 
       // Log in-app notification
       db.query(
-        `INSERT INTO notifications (appointment_id, recipient_type, recipient_id, channel, message, notification_type, is_sent) VALUES (?, 'guest', ?, 'in_app', ?, 'turn_now', 1)`,
-        [appointmentId, req.guestId, `🎉 It's Your Turn Now! / دورك الآن!\nPlease go to the office! / اذهب إلى المكتب الآن!\nTicket: #${appt.ticket_number}`],
+        `INSERT INTO notifications (appointment_id, recipient_type, recipient_id, channel, message, notification_type, is_sent) VALUES (?, 'parent', ?, 'in_app', ?, 'turn_now', 1)`,
+        [appointmentId, req.parentId, `🎉 It's Your Turn Now! / دورك الآن!\nPlease go to the office! / اذهب إلى المكتب الآن!\nTicket: #${appt.ticket_number}`],
         (err) => { if (err) console.error('Turn now notification error:', err); }
       );
 
@@ -1433,8 +1407,8 @@ router.post('/queue-status/:appointmentId/send-turn-now', verifyGuestToken, (req
   );
 });
 
-// POST /api/guest/queue-status/:appointmentId/send-turn-now-whatsapp
-router.post('/queue-status/:appointmentId/send-turn-now-whatsapp', verifyGuestToken, (req, res) => {
+// POST /api/parent/queue-status/:appointmentId/send-turn-now-whatsapp
+router.post('/queue-status/:appointmentId/send-turn-now-whatsapp', verifyParentToken, (req, res) => {
   const { appointmentId } = req.params;
 
   db.query(
@@ -1442,10 +1416,10 @@ router.post('/queue-status/:appointmentId/send-turn-now-whatsapp', verifyGuestTo
       CONCAT(s.first_name, ' ', s.last_name) as staff_name,
       s.room_number, s.block, s.floor
      FROM appointments a
-     JOIN guests p ON a.guest_id = p.id
+     JOIN parents p ON a.parent_id = p.id
      JOIN staff s ON a.staff_id = s.id
-     WHERE a.id = ? AND a.guest_id = ? AND a.status = 'serving'`,
-    [appointmentId, req.guestId],
+     WHERE a.id = ? AND a.parent_id = ? AND a.status = 'serving'`,
+    [appointmentId, req.parentId],
     async (err, results) => {
       if (err) {
         console.error('Turn now WhatsApp error:', err);
@@ -1490,8 +1464,8 @@ Hello ${appt.first_name},
 
       if (waResult.success) {
         db.query(
-          `INSERT INTO notifications (appointment_id, recipient_type, recipient_id, channel, message, notification_type, is_sent) VALUES (?, 'guest', ?, 'whatsapp', ?, 'turn_now', 1)`,
-          [appointmentId, req.guestId, `🎉 It's Your Turn Now! / دورك الآن!\nTicket: #${appt.ticket_number}`],
+          `INSERT INTO notifications (appointment_id, recipient_type, recipient_id, channel, message, notification_type, is_sent) VALUES (?, 'parent', ?, 'whatsapp', ?, 'turn_now', 1)`,
+          [appointmentId, req.parentId, `🎉 It's Your Turn Now! / دورك الآن!\nTicket: #${appt.ticket_number}`],
           (err) => { if (err) console.error('Turn now WA log error:', err); }
         );
       }
@@ -1501,11 +1475,11 @@ Hello ${appt.first_name},
   );
 });
 
-// PUT /api/guest/notifications/read-all - Mark all notifications as read
-router.put('/notifications/read-all', verifyGuestToken, (req, res) => {
+// PUT /api/parent/notifications/read-all - Mark all notifications as read
+router.put('/notifications/read-all', verifyParentToken, (req, res) => {
   db.query(
-    'UPDATE notifications SET is_read = 1, read_at = NOW() WHERE recipient_type = "guest" AND recipient_id = ? AND is_read = 0',
-    [req.guestId],
+    'UPDATE notifications SET is_read = 1, read_at = NOW() WHERE recipient_type = "parent" AND recipient_id = ? AND is_read = 0',
+    [req.parentId],
     (err, result) => {
       if (err) {
         console.error('Mark all read error:', err);
@@ -1516,16 +1490,16 @@ router.put('/notifications/read-all', verifyGuestToken, (req, res) => {
   );
 });
 
-// GET /api/guest/stats - Get guest statistics
-router.get('/stats', verifyGuestToken, (req, res) => {
+// GET /api/parent/stats - Get parent statistics
+router.get('/stats', verifyParentToken, (req, res) => {
   db.query(
     `SELECT 
       COUNT(*) as total_visits,
       SUM(CASE WHEN status = 'served' THEN 1 ELSE 0 END) as completed,
       AVG(CASE WHEN status = 'served' THEN estimated_wait_minutes END) as avg_wait
      FROM appointments
-     WHERE guest_id = ?`,
-    [req.guestId],
+     WHERE parent_id = ?`,
+    [req.parentId],
     (err, results) => {
       if (err) {
         console.error('Stats error:', err);
@@ -1541,38 +1515,5 @@ router.get('/stats', verifyGuestToken, (req, res) => {
     }
   );
 });
-// ==================== DELETE ALL NOTIFICATIONS ====================
-// MUST be before /:id route to prevent "all" being treated as an ID
-router.delete('/notifications/all', verifyGuestToken, (req, res) => {
-  db.query(
-    'DELETE FROM notifications WHERE recipient_id = ? AND recipient_type = "guest"',
-    [req.guestId],
-    (err, result) => {
-      if (err) {
-        console.error('Delete all notifications error:', err);
-        return res.status(500).json({ error: 'Failed to delete all notifications' });
-      }
-      res.json({ success: true, deleted: result.affectedRows, message: 'All notifications deleted' });
-    }
-  );
-});
 
-// ==================== DELETE SINGLE NOTIFICATION ====================
-router.delete('/notifications/:id', verifyGuestToken, (req, res) => {
-  const { id } = req.params;
-  db.query(
-    'DELETE FROM notifications WHERE id = ? AND recipient_id = ? AND recipient_type = "guest"',
-    [id, req.guestId],
-    (err, result) => {
-      if (err) {
-        console.error('Delete notification error:', err);
-        return res.status(500).json({ error: 'Failed to delete notification' });
-      }
-      if (result.affectedRows === 0) {
-        return res.status(404).json({ error: 'Notification not found or already deleted' });
-      }
-      res.json({ success: true, message: 'Notification deleted' });
-    }
-  );
-});
 module.exports = router;

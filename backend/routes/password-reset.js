@@ -69,7 +69,6 @@ const generateSecureToken = () => {
 // ============================================
 
 const buildResetEmailTemplate = (firstName, resetCode, lang = 'en') => {
-  const isAr = lang === 'ar';
 
   return `<!DOCTYPE html>
 <html lang="en">

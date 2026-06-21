@@ -15,7 +15,6 @@ const authenticateAdmin = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    // FIX: Check userType (not type) to match token payload from auth.js
     if (decoded.userType !== 'admin') {
       return res.status(403).json({ error: 'Admin access required' });
     }
@@ -200,7 +199,7 @@ router.put('/staff/:id', authenticateAdmin, async (req, res) => {
   }
 });
 
-// NEW: Update staff status (availability/paused)
+// Update staff status (availability/paused)
 router.put('/staff/:id/status', authenticateAdmin, (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
@@ -220,6 +219,8 @@ router.put('/staff/:id/status', authenticateAdmin, (req, res) => {
     case 'paused':
       updates = { is_available: 0, is_paused: 1 };
       break;
+    default:
+      updates = { is_available: 0, is_paused: 0 };
   }
 
   const fields = Object.keys(updates).map(k => `${k} = ?`).join(', ');
@@ -322,7 +323,6 @@ router.get('/peak-hours', authenticateAdmin, (req, res) => {
     console.log('[PEAK-HOURS] db object type:', typeof db);
     console.log('[PEAK-HOURS] db.query exists:', typeof db.query === 'function');
 
-    // FIX: Separate date filters — sql1 has no table alias, sql2 uses alias 'a'
     let dateFilter, dateFilterAliased;
     switch(period) {
       case 'day':
@@ -714,6 +714,10 @@ router.get('/export/:type', authenticateAdmin, async (req, res) => {
       case 'guests':
         query = `SELECT id, first_name, last_name, contact_method, contact_value, language, is_active, created_at 
          FROM guests WHERE is_active = 1 ORDER BY created_at DESC`;
+        break;
+
+      default:
+        query = `SELECT id, created_at FROM appointments WHERE 1=0`;
         break;
     }
 
